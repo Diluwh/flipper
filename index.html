@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird - With Custom Bird Image</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #87CEEB;
+            font-family: Arial, sans-serif;
+        }
+
+        #gameCanvas {
+            border: 2px solid #000;
+        }
+
+        .button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .selected {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let bird, pipes, score, gameOver, frameCount, gameState, difficulty, gameMode;
+        let birdImage = new Image();
+        birdImage.src = 'flappy.png'; // Make sure this matches your image file name
+
+        const difficulties = {
+            easy: { gravity: 0.3, jump: -7, pipeGap: 200, pipeInterval: 220 },
+            normal: { gravity: 0.4, jump: -8, pipeGap: 180, pipeInterval: 200 },
+            hard: { gravity: 0.5, jump: -9, pipeGap: 160, pipeInterval: 180 }
+        };
+
+        const gameModes = {
+            classic: { description: "Classic Flappy Bird gameplay" },
+            timeAttack: { description: "Score as much as possible in 60 seconds" },
+            endurance: { description: "Single life, increasing difficulty over time" }
+        };
+
+        function initGame() {
+            bird = {
+                x: 50,
+                y: 300,
+                velocity: 0,
+                width: 40,  // Adjust based on your image size
+                height: 40  // Adjust based on your image size
+            };
+            pipes = [];
+            score = 0;
+            gameOver = false;
+            frameCount = 0;
+
+            const difficultySettings = difficulties[difficulty];
+            bird.gravity = difficultySettings.gravity;
+            bird.jump = difficultySettings.jump;
+
+            if (gameMode === 'timeAttack') {
+                gameState.timeLeft = 60;
+            } else if (gameMode === 'endurance') {
+                gameState.difficultyMultiplier = 1;
+            }
+        }
+
+        function drawBird() {
+            ctx.drawImage(birdImage, bird.x - bird.width / 2, bird.y - bird.height / 2, bird.width, bird.height);
+        }
+
+        function drawPipes() {
+            ctx.fillStyle = '#00FF00';
+            pipes.forEach(pipe => {
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.top);
+                ctx.fillRect(pipe.x, pipe.bottom, pipe.width, canvas.height - pipe.bottom);
+            });
+        }
+
+        function drawScore() {
+            ctx.fillStyle = '#000';
+            ctx.font = '24px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 30);
+
+            if (gameMode === 'timeAttack') {
+                ctx.fillText(`Time: ${Math.ceil(gameState.timeLeft)}s`, 10, 60);
+            } else if (gameMode === 'endurance') {
+                ctx.fillText(`Difficulty: ${gameState.difficultyMultiplier.toFixed(1)}x`, 10, 60);
+            }
+        }
+
+        function updateBird() {
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            if (bird.y + bird.height / 2 > canvas.height) {
+                bird.y = canvas.height - bird.height / 2;
+                gameOver = true;
+            }
+
+            if (bird.y - bird.height / 2 < 0) {
+                bird.y = bird.height / 2;
+                bird.velocity = 0;
+            }
+        }
+
+        function updatePipes() {
+            frameCount++;
+            const difficultySettings = difficulties[difficulty];
+
+            if (pipes.length === 0 || frameCount % difficultySettings.pipeInterval === 0) {
+                let pipeY = Math.random() * (canvas.height - difficultySettings.pipeGap - 100) + 50;
+                pipes.push({
+                    x: canvas.width,
+                    top: pipeY,
+                    bottom: pipeY + difficultySettings.pipeGap,
+                    width: 50,
+                    passed: false
+                });
+            }
+
+            let pipeSpeed = 2;
+            if (gameMode === 'endurance') {
+                pipeSpeed *= gameState.difficultyMultiplier;
+            }
+
+            pipes.forEach(pipe => {
+                pipe.x -= pipeSpeed;
+
+                if (bird.x + bird.width / 2 > pipe.x && bird.x - bird.width / 2 < pipe.x + pipe.width) {
+                    if (bird.y - bird.height / 2 < pipe.top || bird.y + bird.height / 2 > pipe.bottom) {
+                        gameOver = true;
+                    }
+                }
+
+                if (pipe.x + pipe.width < bird.x && !pipe.passed) {
+                    score++;
+                    pipe.passed = true;
+                    if (gameMode === 'endurance') {
+                        gameState.difficultyMultiplier += 0.1;
+                    }
+                }
+            });
+
+            pipes = pipes.filter(pipe => pipe.x > -pipe.width);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawBird();
+            drawPipes();
+            drawScore();
+
+            if (!gameOver) {
+                updateBird();
+                updatePipes();
+
+                if (gameMode === 'timeAttack') {
+                    gameState.timeLeft -= 1 / 60;
+                    if (gameState.timeLeft <= 0) {
+                        gameOver = true;
+                    }
+                }
+
+                requestAnimationFrame(gameLoop);
+            } else {
+                ctx.fillStyle = '#000';
+                ctx.font = '48px Arial';
+                ctx.fillText('Game Over', canvas.width / 2 - 100, canvas.height / 2);
+                ctx.font = '24px Arial';
+                ctx.fillText('Click to Restart', canvas.width / 2 - 70, canvas.height / 2 + 40);
+            }
+        }
+
+        function drawButton(text, x, y, width, height, isSelected) {
+            ctx.fillStyle = isSelected ? '#4CAF50' : '#ddd';
+            ctx.fillRect(x, y, width, height);
+            ctx.fillStyle = isSelected ? '#fff' : '#000';
+            ctx.font = '20px Arial';
+            ctx.fillText(text, x + 10, y + 30);
+        }
+
+        function drawStartScreen() {
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#000';
+            ctx.font = '40px Arial';
+            ctx.fillText('Flappy Bird', canvas.width / 2 - 100, 50);
+
+            ctx.font = '24px Arial';
+            ctx.fillText('Select Difficulty:', 20, 120);
+
+            drawButton('Easy', 20, 140, 100, 40, difficulty === 'easy');
+            drawButton('Normal', 130, 140, 100, 40, difficulty === 'normal');
+            drawButton('Hard', 240, 140, 100, 40, difficulty === 'hard');
+
+            ctx.fillText('Select Game Mode:', 20, 220);
+
+            drawButton('Classic', 20, 240, 100, 40, gameMode === 'classic');
+            drawButton('Time Attack', 130, 240, 140, 40, gameMode === 'timeAttack');
+            drawButton('Endurance', 280, 240, 100, 40, gameMode === 'endurance');
+
+            ctx.font = '18px Arial';
+            ctx.fillText(gameModes[gameMode].description, 20, 300);
+
+            ctx.font = '24px Arial';
+            ctx.fillText('Click "Start Game" to begin', canvas.width / 2 - 120, 400);
+
+            drawButton('Start Game', canvas.width / 2 - 60, 420, 120, 40);
+        }
+
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            if (gameState === 'start') {
+                // Difficulty selection
+                if (y >= 140 && y <= 180) {
+                    if (x >= 20 && x <= 120) difficulty = 'easy';
+                    else if (x >= 130 && x <= 230) difficulty = 'normal';
+                    else if (x >= 240 && x <= 340) difficulty = 'hard';
+                }
+                // Game mode selection
+                else if (y >= 240 && y <= 280) {
+                    if (x >= 20 && x <= 120) gameMode = 'classic';
+                    else if (x >= 130 && x <= 270) gameMode = 'timeAttack';
+                    else if (x >= 280 && x <= 380) gameMode = 'endurance';
+                }
+                // Start game button
+                else if (x >= canvas.width / 2 - 60 && x <= canvas.width / 2 + 60 && y >= 420 && y <= 460) {
+                    gameState = 'playing';
+                    initGame();
+                    gameLoop();
+                }
+                drawStartScreen();
+            } else if (gameState === 'playing') {
+                if (!gameOver) {
+                    bird.velocity = bird.jump;
+                } else {
+                    gameState = 'start';
+                    drawStartScreen();
+                }
+            }
+        });
+
+        // Initialize game state
+        gameState = 'start';
+        difficulty = 'normal';
+        gameMode = 'classic';
+        drawStartScreen();
+    </script>
+</body>
+
+</html>
